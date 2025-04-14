@@ -50,10 +50,10 @@ This creates a `_site` folder containing all the static HTML, CSS, and JavaScrip
 1. **Install Nginx**
    ```bash
    # Debian/Ubuntu
-   sudo apt update && sudo apt install nginx
+   sudo apt update && sudo apt install nginx php php-mysql php-json
 
    # CentOS/RHEL
-   sudo yum install epel-release && sudo yum install nginx
+   sudo yum install epel-release nginx php php-mysqlnd php-json
    ```
 
 2. **Create a configuration file**
@@ -66,7 +66,7 @@ This creates a `_site` folder containing all the static HTML, CSS, and JavaScrip
    server {
        listen 80;
        server_name yourdomain.com;
-       root /var/www/tech-blog/_site;
+       root /var/www/tech-blog;
        index index.html;
        
        # Performance settings
@@ -79,6 +79,11 @@ This creates a `_site` folder containing all the static HTML, CSS, and JavaScrip
        
        # For tag filtering support
        error_page 404 = /index.html;
+       
+       # Handle API requests
+       location /api/ {
+           try_files $uri $uri/ /api/$uri;
+       }
    }
    ```
 
@@ -94,10 +99,10 @@ This creates a `_site` folder containing all the static HTML, CSS, and JavaScrip
 1. **Install Apache**
    ```bash
    # Debian/Ubuntu
-   sudo apt update && sudo apt install apache2
+   sudo apt update && sudo apt install apache2 php php-mysql php-json
 
    # CentOS/RHEL
-   sudo yum install httpd
+   sudo yum install httpd php php-mysqlnd php-json
    ```
 
 2. **Create a VirtualHost**
@@ -109,9 +114,9 @@ This creates a `_site` folder containing all the static HTML, CSS, and JavaScrip
    ```apache
    <VirtualHost *:80>
        ServerName yourdomain.com
-       DocumentRoot /var/www/tech-blog/_site
+       DocumentRoot /var/www/tech-blog
        
-       <Directory /var/www/tech-blog/_site>
+       <Directory /var/www/tech-blog>
            Options -Indexes +FollowSymLinks
            AllowOverride All
            Require all granted
@@ -129,187 +134,51 @@ This creates a `_site` folder containing all the static HTML, CSS, and JavaScrip
    sudo systemctl restart apache2
    ```
 
-### Step 3: Upload Blog Files
+### Step 3: Deploy Your Blog
 
-```bash
-# Create directory
-sudo mkdir -p /var/www/tech-blog
-
-# Copy files (from your local machine where you cloned the repo)
-sudo cp -r _site/* /var/www/tech-blog/_site/
-```
-
-### Step 4: Set Up Database
-
-1. **Install MySQL**
+1. **Create directory and upload files**
    ```bash
-   # Debian/Ubuntu
-   sudo apt update && sudo apt install mysql-server
-
-   # CentOS/RHEL
-   sudo yum install mysql-server
-   sudo systemctl start mysqld
+   # Create directory
+   sudo mkdir -p /var/www/tech-blog
+   
+   # Copy files (from your local machine where you cloned the repo)
+   sudo cp -r _site/* /var/www/tech-blog/
    ```
 
-2. **Import the database schema**
+2. **Set Up Database**
    ```bash
-   # This single command will create the database, tables, users and sample content
+   # Install MySQL
+   sudo apt install mysql-server  # Debian/Ubuntu
+   # or
+   sudo yum install mysql-server  # CentOS/RHEL
+   sudo systemctl start mysqld
+   
+   # Import the database schema (creates database, tables, users and sample content)
    mysql -u root -p < database/setup.sql
    ```
 
-   This sets up:
-   - The blog_database
-   - All required tables
-   - Default admin user
-   - Sample blog posts
-   - Proper permissions
-
-### Step 5: Create Simple Backend API (PHP)
-
-1. **Install PHP and extensions**
+3. **Set Proper Permissions**
+   
+   The repository includes a permissions script that handles all the setup for you, including copying the PHP API files to the correct location:
+   
    ```bash
-   # Debian/Ubuntu
-   sudo apt install php php-mysql php-json
-
-   # CentOS/RHEL
-   sudo yum install php php-mysqlnd php-json
+   # Make the script executable
+   chmod +x tools/permissions.py
+   
+   # Run the script (specify your web server user/group if different)
+   sudo tools/permissions.py --dir /var/www/tech-blog --user www-data --group www-data
    ```
+   
+   This script:
+   - Creates the API directory
+   - Copies all PHP files from src/api to the production directory
+   - Sets the correct ownership and permissions
+   - Makes config files secure
 
-2. **Create API directory**
+4. **Update Frontend API URLs** (if needed)
    ```bash
-   sudo mkdir -p /var/www/tech-blog/api
-   ```
-
-3. **Create PHP files for the API endpoints**
-
-   **Create config.php**
-   ```bash
-   sudo nano /var/www/tech-blog/api/config.php
-   ```
-   
-   Add:
-   ```php
-   <?php
-   $db_host = 'localhost';
-   $db_user = 'admin';  // Default user from setup.sql
-   $db_pass = 'blog2025!';  // Default password from setup.sql
-   $db_name = 'blog_database';
-   
-   $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
-   if ($conn->connect_error) {
-       die('{"error": "Connection failed: ' . $conn->connect_error . '"}');
-   }
-   ?>
-   ```
-
-   **Create posts.php**
-   ```bash
-   sudo nano /var/www/tech-blog/api/posts.php
-   ```
-   
-   Add:
-   ```php
-   <?php
-   header('Content-Type: application/json');
-   header('Access-Control-Allow-Origin: *');
-   
-   include 'config.php';
-   
-   // Get tag filter if present
-   $tag = isset($_GET['tag']) ? $_GET['tag'] : '';
-   
-   // Build query
-   $sql = "SELECT * FROM posts WHERE status = 'published'";
-   if (!empty($tag)) {
-       $sql .= " AND FIND_IN_SET('" . $conn->real_escape_string($tag) . "', REPLACE(tags, ',', ','))";
-   }
-   $sql .= " ORDER BY created_at DESC";
-   
-   $result = $conn->query($sql);
-   $posts = [];
-   
-   if ($result->num_rows > 0) {
-       while($row = $result->fetch_assoc()) {
-           // Convert 'published' status to 'public' for frontend
-           if ($row['status'] === 'published') {
-               $row['status'] = 'public';
-           }
-           $posts[] = $row;
-       }
-   }
-   
-   echo json_encode(['posts' => $posts]);
-   $conn->close();
-   ?>
-   ```
-
-   **Create post.php for individual posts**
-   ```bash
-   sudo nano /var/www/tech-blog/api/post.php
-   ```
-   
-   Add:
-   ```php
-   <?php
-   header('Content-Type: application/json');
-   header('Access-Control-Allow-Origin: *');
-   
-   include 'config.php';
-   
-   $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-   
-   if ($id > 0) {
-       $sql = "SELECT * FROM posts WHERE id = " . $id;
-       $result = $conn->query($sql);
-       
-       if ($result->num_rows > 0) {
-           $post = $result->fetch_assoc();
-           
-           // Convert 'published' status to 'public' for frontend
-           if ($post['status'] === 'published') {
-               $post['status'] = 'public';
-           }
-           
-           echo json_encode(['post' => $post]);
-       } else {
-           echo json_encode(['error' => 'Post not found']);
-       }
-   } else {
-       echo json_encode(['error' => 'Invalid post ID']);
-   }
-   
-   $conn->close();
-   ?>
-   ```
-
-4. **Update the web server configuration to handle API requests**
-
-   **For Nginx, add inside the server block:**
-   ```nginx
-   location /api/ {
-       try_files $uri $uri/ /api/index.php?$args;
-   }
-   ```
-
-   **For Apache, create a .htaccess file:**
-   ```bash
-   sudo nano /var/www/tech-blog/api/.htaccess
-   ```
-   
-   Add:
-   ```
-   RewriteEngine On
-   RewriteCond %{REQUEST_FILENAME} !-f
-   RewriteCond %{REQUEST_FILENAME} !-d
-   RewriteRule ^(.*)$ index.php?path=$1 [QSA,NC,L]
-   ```
-
-### Step 6: Update Frontend API URLs
-
-1. Open the site JavaScript files in the `_site/js` directory
-2. Update any API endpoint URLs to point to your new PHP backend:
-   ```bash
-   sudo find /var/www/tech-blog/_site -type f -name "*.js" -exec sed -i 's|http://localhost:3000/|/api/|g' {} \;
+   # This command updates all JavaScript files to use the correct API endpoint
+   sudo find /var/www/tech-blog -type f -name "*.js" -exec sed -i 's|http://localhost:3000/|/api/|g' {} \;
    ```
 
 ## Admin Interface
