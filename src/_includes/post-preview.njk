@@ -1,0 +1,31 @@
+{% macro postPreview(post) %}
+<article class="blog-post-preview">
+  <header class="post-preview-header">
+    <h2 class="post-preview-title">
+      <a href="{{ post.url }}">{{ post.data.title }}</a>
+    </h2>
+    <time class="post-preview-date" datetime="{{ post.date | date('YYYY-MM-DD') }}">
+      {{ post.date | formatDate }}
+    </time>
+  </header>
+
+  <div class="post-preview-content">
+    {% if post.data.excerpt %}
+      {{ post.data.excerpt }}
+    {% else %}
+      {{ post.templateContent | truncate(200) }}
+    {% endif %}
+  </div>
+
+  <footer class="post-preview-footer">
+    <div class="post-preview-tags">
+      {% for tag in post.data.tags %}
+        {% if tag != "posts" %}
+          <span class="tag">{{ tag }}</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <a href="{{ post.url }}" class="read-more">Read More →</a>
+  </footer>
+</article>
+{% endmacro %}

@@ -1,0 +1,32 @@
+{
+  "name": "cybria-inspired-blog",
+  "version": "1.0.0",
+  "description": "A modern blog platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "npx @11ty/eleventy --serve",
+    "dev": "nodemon server.js",
+    "build": "npx @11ty/eleventy"
+  },
+  "keywords": [
+    "blog",
+    "eleventy",
+    "cybria"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@11ty/eleventy": "^2.0.1",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "luxon": "^3.6.1",
+    "markdown-it": "^14.1.0",
+    "mysql2": "^3.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}

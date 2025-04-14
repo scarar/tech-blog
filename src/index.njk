@@ -1,0 +1,476 @@
+---
+layout: base.njk
+title: Home
+---
+
+<div class="home-page">
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Timothy Monnig</h1>
+      <p class="hero-subtitle">Software Engineer | Tech Innovator | AI Enthusiast</p>
+      <div class="hero-cta">
+        <a href="/about" class="btn btn-primary">About Me</a>
+        <a href="/posts" class="btn btn-secondary">View Blog</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="featured-posts">
+    <h2>Latest Insights</h2>
+    <div id="featured-posts" class="posts-grid">
+      <!-- Posts will be loaded dynamically -->
+      <div class="loading-indicator">Loading posts...</div>
+    </div>
+    <div class="view-all-container">
+      <a href="/posts" class="btn btn-view-all">Explore All Posts</a>
+    </div>
+  </section>
+
+  <section class="blog-tags">
+    <h2>Explore by Topics</h2>
+    <div class="tags-container" id="tags-container">
+      <!-- Tags will be loaded dynamically -->
+    </div>
+  </section>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const postsContainer = document.getElementById('featured-posts');
+    const tagsContainer = document.getElementById('tags-container');
+    
+    // Check if there's a tag filter in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const tagFilter = urlParams.get('tag');
+    
+    // Fetch posts from the API
+    fetch('http://localhost:3000/public-posts')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch posts');
+        }
+        return response.json();
+      })
+      .then(posts => {
+        console.log('Fetched posts:', posts); // Debug: log the posts
+        
+        if (posts.length === 0) {
+          postsContainer.innerHTML = '<div class="no-posts">No posts available yet. Check back soon!</div>';
+          return;
+        }
+        
+        // Filter posts by tag if tag parameter is present
+        let filteredPosts = posts;
+        if (tagFilter) {
+          console.log(`Filtering posts by tag: '${tagFilter}'`);
+          
+          // This approach logs each step for debugging
+          filteredPosts = posts.filter(post => {
+            if (!post.tags) {
+              console.log(`Post ${post.id} has no tags`);
+              return false;
+            }
+            
+            // Split and normalize tags
+            const postTags = post.tags.split(',')
+              .map(t => t.trim().toLowerCase());
+            
+            console.log(`Post ${post.id} has tags:`, postTags);
+            
+            // Check if the tag is included - handle exact match case-insensitive
+            return postTags.some(tag => tag.toLowerCase() === tagFilter.toLowerCase());
+          });
+          
+          console.log('Filtered posts:', filteredPosts);
+          
+          // Add a heading to show which tag is being filtered - directly to the postsContainer
+          if (postsContainer) {
+            const filterInfo = document.createElement('div');
+            filterInfo.className = 'filter-info';
+            filterInfo.innerHTML = `<h3 class="filter-heading">Posts tagged with "<span class="highlight">${tagFilter}</span>" <a href="/" class="clear-filter">(Clear filter)</a></h3>`;
+            postsContainer.parentNode.insertBefore(filterInfo, postsContainer);
+          }
+          
+          // If no posts match the tag
+          if (filteredPosts.length === 0) {
+            postsContainer.innerHTML = `<div class="no-posts">No posts found with the tag "${tagFilter}". <a href="/">View all posts</a></div>`;
+            return;
+          }
+        }
+        
+        // Display posts (all or filtered)
+        const postsToShow = tagFilter ? filteredPosts : filteredPosts.slice(0, 3);
+        postsContainer.innerHTML = postsToShow.map(post => `
+          <div class="card post-card">
+            <h3 class="post-title">${post.title}</h3>
+            <p class="post-excerpt">${post.excerpt || 'No excerpt available'}</p>
+            <div class="post-meta">
+              <span class="post-date">${new Date(post.created_at).toLocaleDateString()}</span>
+              <span class="post-author">By ${post.author || 'Admin'}</span>
+            </div>
+            <a href="/post/${post.id}/" class="read-more">Read More</a>
+          </div>
+        `).join('');
+        
+        // Extract and display unique tags
+        const allTags = [];
+        posts.forEach(post => {
+          if (post.tags) {
+            const postTags = post.tags.split(',');
+            postTags.forEach(tag => {
+              tag = tag.trim();
+              if (tag && !allTags.includes(tag)) {
+                allTags.push(tag);
+              }
+            });
+          }
+        });
+        
+        if (allTags.length > 0) {
+          tagsContainer.innerHTML = allTags.map(tag => 
+            `<a href="/?tag=${encodeURIComponent(tag)}" class="tag ${tagFilter && tagFilter.toLowerCase() === tag.toLowerCase() ? 'active' : ''}">${tag}</a>`
+          ).join('');
+        } else {
+          tagsContainer.innerHTML = '<p>No tags available yet.</p>';
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching posts:', error);
+        postsContainer.innerHTML = '<div class="error">Failed to load posts. Please try again later.</div>';
+      });
+  });
+</script>
+
+<style>
+.home-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.hero {
+  background-color: #16213e;
+  border-radius: 12px;
+  padding: 70px 30px;
+  margin-bottom: 60px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(142, 101, 240, 0.15), transparent 70%);
+  z-index: 1;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: #e6e6e6;
+}
+
+.hero h1 {
+  color: #8e65f0;
+  font-size: 3.5rem;
+  margin-bottom: 15px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.hero-subtitle {
+  color: #e6e6e6;
+  font-size: 1.25rem;
+  margin-bottom: 35px;
+  opacity: 0.9;
+  letter-spacing: 0.5px;
+}
+
+.hero-cta {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+.btn-primary, .btn-secondary {
+  display: inline-block;
+  padding: 14px 28px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+}
+
+.btn-primary {
+  background-color: #8e65f0;
+  color: white;
+  box-shadow: 0 4px 12px rgba(142, 101, 240, 0.3);
+}
+
+.btn-secondary {
+  background-color: rgba(142, 101, 240, 0.1);
+  color: #8e65f0;
+  border: 1px solid rgba(142, 101, 240, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(142, 101, 240, 0.4);
+}
+
+.btn-secondary:hover {
+  background-color: rgba(142, 101, 240, 0.15);
+}
+
+.featured-posts {
+  margin-bottom: 60px;
+}
+
+.featured-posts h2 {
+  color: #8e65f0;
+  text-align: center;
+  margin-bottom: 40px;
+  font-size: 2.2rem;
+  font-weight: 700;
+  position: relative;
+  display: inline-block;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.featured-posts h2::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background-color: #8e65f0;
+}
+
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 30px;
+}
+
+.post-card {
+  background-color: #16213e;
+  border-radius: 12px;
+  padding: 30px;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.post-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
+  border-color: rgba(142, 101, 240, 0.2);
+}
+
+.post-title {
+  color: #8e65f0;
+  margin-top: 0;
+  margin-bottom: 18px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.post-excerpt {
+  color: #e6e6e6;
+  margin-bottom: 25px;
+  line-height: 1.7;
+  opacity: 0.9;
+  flex-grow: 1;
+}
+
+.post-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #a0a0a0;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 15px;
+}
+
+.read-more {
+  display: inline-block;
+  color: #8e65f0;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  padding: 8px 0;
+  position: relative;
+}
+
+.read-more::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: #8e65f0;
+  transition: width 0.3s ease;
+}
+
+.read-more:hover::after {
+  width: 100%;
+}
+
+.view-all-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.btn-view-all {
+  background-color: #8e65f0;
+  color: white;
+  padding: 14px 30px;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(142, 101, 240, 0.3);
+}
+
+.btn-view-all:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(142, 101, 240, 0.4);
+}
+
+.blog-tags {
+  background-color: #16213e;
+  border-radius: 12px;
+  padding: 50px 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.blog-tags h2 {
+  color: #8e65f0;
+  text-align: center;
+  margin-bottom: 40px;
+  font-size: 2.2rem;
+  font-weight: 700;
+  position: relative;
+  display: inline-block;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.blog-tags h2::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background-color: #8e65f0;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+}
+
+.tag {
+  background-color: rgba(142, 101, 240, 0.15);
+  color: #8e65f0;
+  padding: 10px 18px;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  border: 1px solid rgba(142, 101, 240, 0.2);
+}
+
+.tag:hover {
+  background-color: #8e65f0;
+  color: white;
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(142, 101, 240, 0.3);
+}
+
+.tag.active {
+  background-color: #8e65f0;
+  color: white;
+}
+
+.loading-indicator,
+.no-posts,
+.error {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 2rem;
+  color: #a0a0a0;
+  font-size: 1.1rem;
+}
+
+.error {
+  color: #e74c3c;
+  background-color: rgba(231, 76, 60, 0.1);
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.filter-heading {
+  margin-bottom: 20px;
+  font-size: 1.6rem;
+  color: #e6e6e6;
+}
+
+.filter-heading .highlight {
+  color: #8e65f0;
+  font-weight: 600;
+}
+
+.clear-filter {
+  font-size: 0.9rem;
+  color: #a0a0a0;
+  text-decoration: none;
+  margin-left: 10px;
+  transition: color 0.3s ease;
+}
+
+.clear-filter:hover {
+  color: #8e65f0;
+}
+
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 2.8rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.1rem;
+  }
+  
+  .hero-cta {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .posts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

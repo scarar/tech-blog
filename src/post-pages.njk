@@ -1,0 +1,265 @@
+---
+pagination:
+  data: posts
+  size: 1
+  alias: post
+permalink: "/post/{{ post.id | slug }}/"
+layout: base.njk
+eleventyExcludeFromCollections: true
+---
+
+<div class="single-post-container">
+  <div id="post-content" class="post-content">
+    <div class="loading">Loading post...</div>
+  </div>
+  <div class="post-navigation">
+    <a href="/" class="back-to-posts">← Back to home</a>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const postContent = document.getElementById('post-content');
+    
+    // Get post ID from URL path
+    const pathParts = window.location.pathname.split('/');
+    let postId = null;
+    
+    for (let i = 0; i < pathParts.length; i++) {
+      if (pathParts[i] === 'post' && i+1 < pathParts.length && pathParts[i+1] !== '') {
+        postId = pathParts[i+1];
+        break;
+      }
+    }
+    
+    if (!postId) {
+      console.log('No post ID found in URL path, checking query params');
+      // Check for ID in query parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      postId = urlParams.get('id');
+    }
+    
+    if (!postId) {
+      postContent.innerHTML = '<div class="error">Post not found. No post ID specified.</div>';
+      return;
+    }
+    
+    console.log('Fetching post with ID:', postId);
+    
+    // Fetch post from API
+    fetch(`http://localhost:3000/public-posts/${postId}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Post not found or not published');
+        }
+        return response.json();
+      })
+      .then(post => {
+        console.log('Post data received:', post);
+        
+        // Format date
+        const postDate = new Date(post.created_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        
+        // Format tags
+        let tagsHtml = '';
+        if (post.tags) {
+          const tagsList = post.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+          if (tagsList.length > 0) {
+            tagsHtml = `<div class="post-tags">
+              ${tagsList.map(tag => 
+                `<a href="/?tag=${encodeURIComponent(tag.toLowerCase())}" class="tag">${tag}</a>`
+              ).join('')}
+            </div>`;
+          }
+        }
+        
+        // Render post
+        postContent.innerHTML = `
+          <h1 class="post-title">${post.title}</h1>
+          <div class="post-meta">
+            <span class="post-date">${postDate}</span>
+            <span class="post-author">By ${post.author || 'Admin'}</span>
+          </div>
+          ${tagsHtml}
+          <div class="post-body">
+            ${post.content}
+          </div>
+        `;
+        
+        // Update page title
+        document.title = `${post.title} | My Tech Blog`;
+      })
+      .catch(error => {
+        console.error('Error fetching post:', error);
+        postContent.innerHTML = `
+          <div class="error">
+            <h2>Post Not Found</h2>
+            <p>The post you're looking for doesn't exist or is not published.</p>
+            <a href="/" class="btn">Back to Home</a>
+          </div>
+        `;
+      });
+  });
+</script>
+
+<style>
+  /* Dark theme with purple accents as per user preference */
+  .single-post-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  
+  .post-content {
+    background-color: #16213e; /* deep navy blue background */
+    border-radius: 12px;
+    padding: 3rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  }
+  
+  .post-title {
+    color: #8e65f0; /* purple accent */
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+  }
+  
+  .post-meta {
+    display: flex;
+    justify-content: space-between;
+    color: #a0a0a0; /* secondary text */
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .post-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .tag {
+    background-color: rgba(142, 101, 240, 0.15);
+    color: #8e65f0; /* purple accent */
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+  }
+  
+  .tag:hover {
+    background-color: #8e65f0;
+    color: white;
+  }
+  
+  .post-body {
+    color: #e6e6e6; /* light gray text */
+    line-height: 1.8;
+    font-size: 1.1rem;
+  }
+  
+  .post-body p {
+    margin-bottom: 1.5rem;
+  }
+  
+  .post-body h2, .post-body h3 {
+    color: #8e65f0; /* purple accent */
+    margin: 2rem 0 1rem;
+  }
+  
+  .post-body a {
+    color: #8e65f0; /* purple accent */
+    text-decoration: underline;
+  }
+  
+  .post-body img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+  }
+  
+  .post-body blockquote {
+    border-left: 4px solid #8e65f0; /* purple accent */
+    padding-left: 1rem;
+    margin-left: 0;
+    color: #a0a0a0; /* secondary text */
+    font-style: italic;
+  }
+  
+  .post-navigation {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3rem;
+  }
+  
+  .back-to-posts {
+    color: #8e65f0; /* purple accent */
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+  }
+  
+  .back-to-posts:hover {
+    opacity: 0.8;
+  }
+  
+  .loading {
+    text-align: center;
+    padding: 3rem;
+    color: #a0a0a0; /* secondary text */
+  }
+  
+  .error {
+    text-align: center;
+    padding: 3rem;
+    color: #e74c3c;
+  }
+  
+  .error h2 {
+    color: #e74c3c;
+    margin-bottom: 1rem;
+  }
+  
+  .error .btn {
+    display: inline-block;
+    background-color: #8e65f0; /* purple accent */
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    margin-top: 1.5rem;
+    transition: all 0.3s ease;
+  }
+  
+  .error .btn:hover {
+    opacity: 0.9;
+    transform: translateY(-3px);
+  }
+  
+  @media (max-width: 768px) {
+    .single-post-container {
+      padding: 1rem;
+    }
+    
+    .post-content {
+      padding: 1.5rem;
+    }
+    
+    .post-title {
+      font-size: 2rem;
+    }
+    
+    .post-meta {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+  }
+</style>

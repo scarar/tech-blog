@@ -1,0 +1,327 @@
+---
+layout: base.njk
+title: Blog Posts
+---
+
+<div class="posts-page">
+  <section class="page-header">
+    <h1>Tech Blog Posts</h1>
+    <p>Dive into the latest insights, tutorials, and tech explorations</p>
+  </section>
+
+  <section class="posts-filter" id="tags-container">
+    <!-- Tags will be dynamically loaded here -->
+    <div class="tags-container">
+      <a href="/" class="tag active">All Posts</a>
+      <!-- Additional tags will be added here -->
+    </div>
+  </section>
+
+  <section class="posts-grid" id="posts-container">
+    <div class="loading">Loading posts...</div>
+  </section>
+
+  <section class="pagination" id="pagination" style="display: none;">
+    <a href="#" class="btn" id="load-more">Load More</a>
+  </section>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const postsContainer = document.getElementById('posts-container');
+    const tagsContainer = document.querySelector('.tags-container');
+    const pagination = document.getElementById('pagination');
+    const loadMoreBtn = document.getElementById('load-more');
+    
+    let currentPage = 1;
+    const postsPerPage = 10;
+    let allPosts = [];
+    
+    // Get tag from URL if present
+    const urlParams = new URLSearchParams(window.location.search);
+    const tagFilter = urlParams.get('tag');
+    
+    // Fetch all tags
+    fetch('http://localhost:3000/public-posts')
+      .then(response => response.json())
+      .then(posts => {
+        // Extract all unique tags from posts
+        const uniqueTags = new Set();
+        posts.forEach(post => {
+          if (post.tags) {
+            const tags = post.tags.split(',');
+            tags.forEach(tag => {
+              const trimmedTag = tag.trim();
+              if (trimmedTag) {
+                uniqueTags.add(trimmedTag);
+              }
+            });
+          }
+        });
+        
+        // Update active class on "All Posts" tag
+        const allPostsTag = tagsContainer.querySelector('.tag');
+        if (!tagFilter) {
+          allPostsTag.classList.add('active');
+        } else {
+          allPostsTag.classList.remove('active');
+        }
+        
+        // Add tags to container
+        Array.from(uniqueTags).sort().forEach(tag => {
+          const tagLink = document.createElement('a');
+          tagLink.href = `/?tag=${encodeURIComponent(tag)}`;
+          tagLink.className = `tag ${tagFilter === tag ? 'active' : ''}`;
+          tagLink.textContent = tag;
+          tagsContainer.appendChild(tagLink);
+        });
+      })
+      .catch(error => {
+        console.error('Error fetching tags:', error);
+      });
+    
+    // Fetch posts
+    fetch('http://localhost:3000/public-posts')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch posts');
+        }
+        return response.json();
+      })
+      .then(posts => {
+        allPosts = posts;
+        
+        // Filter by tag if needed
+        if (tagFilter) {
+          allPosts = allPosts.filter(post => {
+            if (!post.tags) return false;
+            const postTags = post.tags.split(',').map(t => t.trim().toLowerCase());
+            return postTags.includes(tagFilter.toLowerCase());
+          });
+        }
+        
+        if (allPosts.length === 0) {
+          postsContainer.innerHTML = '<div class="no-posts"><p>No posts found.</p></div>';
+          return;
+        }
+        
+        // Show pagination if needed
+        if (allPosts.length > postsPerPage) {
+          pagination.style.display = 'block';
+        }
+        
+        // Display first page of posts
+        displayPosts(1);
+      })
+      .catch(error => {
+        console.error('Error fetching posts:', error);
+        postsContainer.innerHTML = '<div class="error"><p>Failed to load posts. Please try again later.</p></div>';
+      });
+    
+    // Function to display posts for a specific page
+    function displayPosts(page) {
+      const startIndex = (page - 1) * postsPerPage;
+      const endIndex = startIndex + postsPerPage;
+      const postsToShow = allPosts.slice(startIndex, endIndex);
+      
+      postsContainer.innerHTML = postsToShow.map(post => `
+        <div class="card">
+          <h3 class="post-title">${post.title}</h3>
+          <p class="post-excerpt">${post.excerpt || 'No excerpt available'}</p>
+          <div class="post-meta">
+            <span class="post-date">${new Date(post.created_at).toLocaleDateString()}</span>
+            <span class="post-author">By ${post.author || 'Admin'}</span>
+          </div>
+          <div class="post-tags">
+            ${post.tags ? post.tags.split(',').map(tag => 
+              `<a href="/?tag=${encodeURIComponent(tag.trim())}" class="tag-small">${tag.trim()}</a>`
+            ).join('') : ''}
+          </div>
+          <a href="/post/${post.id}/" class="read-more">Read More</a>
+        </div>
+      `).join('');
+    }
+    
+    // Load more posts when button is clicked
+    loadMoreBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      currentPage++;
+      displayPosts(currentPage);
+      
+      // Hide button if all posts are shown
+      if (currentPage * postsPerPage >= allPosts.length) {
+        pagination.style.display = 'none';
+      }
+    });
+  });
+</script>
+
+<style>
+.posts-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.page-header {
+  text-align: center;
+  background-color: #16213e;
+  padding: 40px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.page-header h1 {
+  color: #8e65f0;
+  margin-bottom: 15px;
+}
+
+.page-header p {
+  color: #e6e6e6;
+}
+
+.posts-filter {
+  margin-bottom: 30px;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.tag {
+  background-color: #16213e;
+  color: #e6e6e6;
+  padding: 8px 15px;
+  text-decoration: none;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.tag:hover, .tag.active {
+  background-color: #8e65f0;
+  color: white;
+}
+
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background-color: #16213e;
+  border-radius: 10px;
+  padding: 20px;
+  transition: transform 0.3s ease;
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+.post-title {
+  color: #8e65f0;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+.post-excerpt {
+  color: #e6e6e6;
+  margin-bottom: 15px;
+  flex-grow: 1;
+}
+
+.post-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #a0a0a0;
+  font-size: 0.875rem;
+  margin-bottom: 15px;
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 15px;
+}
+
+.tag-small {
+  background-color: rgba(142, 101, 240, 0.15);
+  color: #8e65f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+
+.tag-small:hover {
+  background-color: #8e65f0;
+  color: white;
+}
+
+.read-more {
+  display: inline-block;
+  color: #8e65f0;
+  text-decoration: none;
+  font-weight: 600;
+  margin-top: auto;
+  transition: opacity 0.3s ease;
+}
+
+.read-more:hover {
+  opacity: 0.8;
+}
+
+.no-posts, .loading, .error {
+  text-align: center;
+  background-color: #16213e;
+  padding: 30px;
+  border-radius: 10px;
+  grid-column: 1 / -1;
+  color: #a0a0a0;
+}
+
+.error {
+  color: #e74c3c;
+}
+
+.pagination {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.btn {
+  display: inline-block;
+  background-color: #8e65f0;
+  color: white;
+  padding: 10px 20px;
+  text-decoration: none;
+  border-radius: 5px;
+  transition: opacity 0.3s ease;
+}
+
+.btn:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .posts-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .post-meta {
+    flex-direction: column;
+    gap: 5px;
+  }
+}
+</style>

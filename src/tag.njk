@@ -1,0 +1,210 @@
+---
+layout: base.njk
+permalink: "/tag/{{ tag }}/"
+---
+
+<div class="tag-page-container">
+  <header class="tag-header">
+    <h1>Posts tagged with <span class="tag-highlight">{{ tag }}</span></h1>
+    <a href="/posts" class="back-link">← View all posts</a>
+  </header>
+
+  <div id="tagged-posts" class="posts-grid">
+    <div class="loading">Loading posts...</div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const taggedPosts = document.getElementById('tagged-posts');
+    
+    // Get tag from URL
+    const pathParts = window.location.pathname.split('/');
+    const tag = pathParts[pathParts.length - 2]; // Get the tag from /tag/TAG/
+    
+    if (!tag) {
+      taggedPosts.innerHTML = '<div class="error">Tag not found</div>';
+      return;
+    }
+    
+    // Fetch posts for this specific tag
+    fetch(`http://localhost:3000/tag/${tag}/posts`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch posts');
+        }
+        return response.json();
+      })
+      .then(posts => {
+        if (posts.length === 0) {
+          taggedPosts.innerHTML = `<div class="no-posts">No posts found with tag "${tag}"</div>`;
+          return;
+        }
+        
+        // Render posts
+        taggedPosts.innerHTML = posts.map(post => `
+          <article class="post-card">
+            <div class="post-content">
+              <h3 class="post-title">${post.title}</h3>
+              <p class="post-excerpt">${post.excerpt || 'No excerpt available'}</p>
+              <div class="post-meta">
+                <span class="post-date">${new Date(post.created_at).toLocaleDateString()}</span>
+                <span class="post-author">By ${post.author || 'Admin'}</span>
+              </div>
+              <a href="/post/${post.id}" class="read-more">Read More</a>
+            </div>
+          </article>
+        `).join('');
+        
+        // Update page title
+        document.title = `Posts tagged with ${tag} | My Tech Blog`;
+      })
+      .catch(error => {
+        console.error('Error fetching posts:', error);
+        taggedPosts.innerHTML = `
+          <div class="error">
+            <h2>Error Loading Posts</h2>
+            <p>Failed to load posts. Please try again later.</p>
+          </div>
+        `;
+      });
+  });
+</script>
+
+<style>
+  .tag-page-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  
+  .tag-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    background-color: #16213e;
+    padding: 3rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  }
+  
+  .tag-header h1 {
+    color: #e6e6e6;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .tag-highlight {
+    color: #8e65f0;
+    font-weight: 700;
+  }
+  
+  .back-link {
+    color: #8e65f0;
+    text-decoration: none;
+    font-weight: 600;
+    display: inline-block;
+    margin-top: 1rem;
+    transition: all 0.3s ease;
+  }
+  
+  .back-link:hover {
+    opacity: 0.8;
+  }
+  
+  .posts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 2rem;
+  }
+  
+  .post-card {
+    background-color: #16213e;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease;
+  }
+  
+  .post-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
+  }
+  
+  .post-content {
+    padding: 1.5rem;
+  }
+  
+  .post-title {
+    color: #8e65f0;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+  }
+  
+  .post-excerpt {
+    color: #e6e6e6;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+  
+  .post-meta {
+    display: flex;
+    justify-content: space-between;
+    color: #a0a0a0;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+  
+  .read-more {
+    display: inline-block;
+    color: #8e65f0;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+  }
+  
+  .read-more:hover {
+    opacity: 0.8;
+  }
+  
+  .loading, .no-posts, .error {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    background-color: #16213e;
+    border-radius: 12px;
+    color: #a0a0a0;
+  }
+  
+  .error {
+    color: #e74c3c;
+  }
+  
+  .error h2 {
+    color: #e74c3c;
+    margin-bottom: 1rem;
+  }
+  
+  @media (max-width: 768px) {
+    .tag-page-container {
+      padding: 1rem;
+    }
+    
+    .tag-header {
+      padding: 2rem 1rem;
+    }
+    
+    .tag-header h1 {
+      font-size: 2rem;
+    }
+    
+    .posts-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .post-meta {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+  }
+</style>

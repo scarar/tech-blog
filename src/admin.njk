@@ -1,0 +1,969 @@
+---
+layout: base.njk
+title: Admin Dashboard
+---
+
+<div class="admin-dashboard">
+  <section class="login-section" id="login-section">
+    <h2>Admin Login</h2>
+    <form id="login-form" class="login-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Login</button>
+      </div>
+      <div id="login-error" class="error-message" style="display: none;"></div>
+    </form>
+  </section>
+
+  <section class="admin-content" id="admin-content" style="display: none;">
+    <section class="dashboard-header">
+      <h1>Blog Post Management</h1>
+      <p>Create, edit, and manage your blog posts with ease.</p>
+      <button id="logout-btn" class="btn btn-secondary">Logout</button>
+    </section>
+
+    <section class="create-post-section">
+      <h2>Create New Post</h2>
+      <form id="create-post-form" class="post-form">
+        <div class="form-group">
+          <label for="post-title">Title</label>
+          <input type="text" id="post-title" name="title" required>
+        </div>
+
+        <div class="form-group">
+          <label for="post-tags">Tags (comma-separated)</label>
+          <input type="text" id="post-tags" name="tags">
+        </div>
+
+        <div class="form-group">
+          <label for="post-excerpt">Excerpt</label>
+          <textarea id="post-excerpt" name="excerpt" rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="post-content">Content</label>
+          <textarea id="post-content" name="content" rows="10" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="post-status">Visibility</label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" id="status-private" name="status" value="draft" checked>
+              <label for="status-private">Private (only visible to admin)</label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" id="status-public" name="status" value="public">
+              <label for="status-public">Public (visible to all visitors)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save Post</button>
+          <button type="button" class="btn btn-secondary" id="preview-post">Preview</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="existing-posts">
+      <h2>Existing Posts</h2>
+      <div class="post-filters">
+        <button class="btn btn-filter active" data-filter="all">All Posts</button>
+        <button class="btn btn-filter" data-filter="public">Public Posts</button>
+        <button class="btn btn-filter" data-filter="draft">Private Posts</button>
+      </div>
+      <div id="posts-list" class="posts-grid">
+        <!-- Dynamically populated posts will go here -->
+      </div>
+    </section>
+  </section>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const loginSection = document.getElementById('login-section');
+  const adminContent = document.getElementById('admin-content');
+  const loginForm = document.getElementById('login-form');
+  const loginError = document.getElementById('login-error');
+  const logoutBtn = document.getElementById('logout-btn');
+  const form = document.getElementById('create-post-form');
+  const postsList = document.getElementById('posts-list');
+  const filterButtons = document.querySelectorAll('.btn-filter');
+  
+  let currentFilter = 'all';
+  let allPosts = [];
+
+  // Logging function
+  function logError(message, details = {}) {
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      message,
+      ...details
+    }));
+  }
+
+  // Attempt login function
+  async function attemptLogin(username, password) {
+    try {
+      const response = await fetch('http://localhost:3000/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        // Store token and show admin content
+        localStorage.setItem('adminToken', result.token);
+        showAdminContent();
+        loadPosts();
+      } else {
+        // Show error message
+        const errorMessage = result.message || 'Login failed';
+        loginError.textContent = errorMessage;
+        loginError.style.display = 'block';
+        
+        // Log detailed error
+        logError('Login failed', { 
+          username, 
+          status: response.status, 
+          message: errorMessage,
+          details: result
+        });
+      }
+    } catch (error) {
+      // Network or parsing error
+      const errorMessage = 'Network error. Please try again.';
+      loginError.textContent = errorMessage;
+      loginError.style.display = 'block';
+      
+      logError('Login network error', { 
+        error: error.toString(),
+        stack: error.stack
+      });
+    }
+  }
+
+  // Login handler
+  loginForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    loginError.style.display = 'none';
+
+    const formData = new FormData(loginForm);
+    const loginData = {
+      username: formData.get('username'),
+      password: formData.get('password')
+    };
+
+    await attemptLogin(loginData.username, loginData.password);
+  });
+
+  // Logout handler
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('adminToken');
+    showLoginSection();
+  });
+
+  // Show login section
+  function showLoginSection() {
+    loginSection.style.display = 'block';
+    adminContent.style.display = 'none';
+  }
+
+  // Show admin content
+  function showAdminContent() {
+    loginSection.style.display = 'none';
+    adminContent.style.display = 'block';
+  }
+
+  // Filter posts
+  function filterPosts(filter) {
+    currentFilter = filter;
+    
+    // Update active filter button
+    filterButtons.forEach(btn => {
+      if (btn.dataset.filter === filter) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+    
+    // Filter posts
+    const filteredPosts = filter === 'all' 
+      ? allPosts 
+      : allPosts.filter(post => post.status === filter);
+    
+    // Render filtered posts
+    renderPosts(filteredPosts);
+  }
+  
+  // Render posts to the DOM
+  function renderPosts(posts) {
+    if (posts.length === 0) {
+      postsList.innerHTML = `<div class="no-posts">No posts found.</div>`;
+      return;
+    }
+    
+    postsList.innerHTML = posts.map(post => `
+      <div class="post-card ${post.status === 'draft' ? 'post-draft' : 'post-public'}">
+        <h3 class="post-title">${post.title}</h3>
+        <span class="post-status-badge">${post.status === 'draft' ? 'Private' : 'Public'}</span>
+        <p class="post-excerpt">${post.excerpt || 'No excerpt available'}</p>
+        <div class="post-meta">
+          <span class="post-date">Created: ${new Date(post.created_at).toLocaleDateString()}</span>
+          <div class="post-actions">
+            ${post.status === 'draft' 
+              ? `<button class="btn btn-publish" data-id="${post.id}">Publish</button>` 
+              : `<button class="btn btn-unpublish" data-id="${post.id}">Unpublish</button>`}
+            <button class="btn btn-edit" data-id="${post.id}">Edit</button>
+            <button class="btn btn-delete" data-id="${post.id}">Delete</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Add event listeners for publish/unpublish buttons
+    document.querySelectorAll('.btn-publish').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const postId = this.dataset.id;
+        updatePostStatus(postId, 'public');
+      });
+    });
+
+    document.querySelectorAll('.btn-unpublish').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const postId = this.dataset.id;
+        updatePostStatus(postId, 'draft');
+      });
+    });
+
+    // Add event listeners for delete buttons
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const postId = this.dataset.id;
+        deletePost(postId);
+      });
+    });
+
+    // Add event listeners for edit buttons
+    document.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const postId = this.dataset.id;
+        editPost(postId);
+      });
+    });
+  }
+
+  // Function to update post status
+  async function updatePostStatus(postId, status) {
+    const token = localStorage.getItem('adminToken');
+    
+    try {
+      const response = await fetch(`http://localhost:3000/posts/${postId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update post status');
+      }
+      
+      // Refresh posts after status update
+      loadPosts();
+      
+      // Show success message
+      const successMessage = document.createElement('div');
+      successMessage.className = 'success-message';
+      successMessage.textContent = `Post ${status === 'public' ? 'published' : 'unpublished'} successfully`;
+      document.querySelector('.existing-posts').prepend(successMessage);
+      
+      // Remove success message after 3 seconds
+      setTimeout(() => {
+        successMessage.remove();
+      }, 3000);
+    } catch (error) {
+      console.error('Error updating post status:', error);
+      
+      // Show error message
+      const errorMessage = document.createElement('div');
+      errorMessage.className = 'error-message';
+      errorMessage.textContent = 'Failed to update post status. Please try again.';
+      document.querySelector('.existing-posts').prepend(errorMessage);
+      
+      // Remove error message after 3 seconds
+      setTimeout(() => {
+        errorMessage.remove();
+      }, 3000);
+    }
+  }
+
+  // Function to handle post deletion
+  async function deletePost(postId) {
+    if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+      return;
+    }
+    
+    const token = localStorage.getItem('adminToken');
+    
+    try {
+      const response = await fetch(`http://localhost:3000/posts/${postId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete post');
+      }
+      
+      // Refresh posts after deletion
+      loadPosts();
+      
+      // Show success message
+      const successMessage = document.createElement('div');
+      successMessage.className = 'success-message';
+      successMessage.textContent = 'Post deleted successfully';
+      document.querySelector('.existing-posts').prepend(successMessage);
+      
+      // Remove success message after 3 seconds
+      setTimeout(() => {
+        successMessage.remove();
+      }, 3000);
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      
+      // Show error message
+      const errorMessage = document.createElement('div');
+      errorMessage.className = 'error-message';
+      errorMessage.textContent = 'Failed to delete post. Please try again.';
+      document.querySelector('.existing-posts').prepend(errorMessage);
+      
+      // Remove error message after 3 seconds
+      setTimeout(() => {
+        errorMessage.remove();
+      }, 3000);
+    }
+  }
+
+  // Function to handle post editing
+  async function editPost(postId) {
+    const token = localStorage.getItem('adminToken');
+    
+    try {
+      // Fetch the post data
+      const response = await fetch(`http://localhost:3000/posts/${postId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch post data');
+      }
+      
+      const post = await response.json();
+      
+      // Populate the form with post data
+      document.getElementById('post-title').value = post.title;
+      document.getElementById('post-excerpt').value = post.excerpt || '';
+      document.getElementById('post-content').value = post.content;
+      document.getElementById('post-tags').value = post.tags || '';
+      
+      // Set the correct status radio button
+      if (post.status === 'public') {
+        document.getElementById('status-public').checked = true;
+      } else {
+        document.getElementById('status-private').checked = true;
+      }
+      
+      // Change form submission to update instead of create
+      const form = document.getElementById('create-post-form');
+      form.dataset.mode = 'edit';
+      form.dataset.postId = postId;
+      
+      // Change button text
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton.textContent = 'Update Post';
+      
+      // Scroll to form
+      form.scrollIntoView({ behavior: 'smooth' });
+    } catch (error) {
+      console.error('Error fetching post for editing:', error);
+      
+      // Show error message
+      const errorMessage = document.createElement('div');
+      errorMessage.className = 'error-message';
+      errorMessage.textContent = 'Failed to load post for editing. Please try again.';
+      document.querySelector('.create-post-section').prepend(errorMessage);
+      
+      // Remove error message after 3 seconds
+      setTimeout(() => {
+        errorMessage.remove();
+      }, 3000);
+    }
+  }
+
+  // Function to load existing posts
+  async function loadPosts() {
+    const token = localStorage.getItem('adminToken');
+    
+    try {
+      const response = await fetch('http://localhost:3000/posts', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      allPosts = await response.json();
+      filterPosts(currentFilter);
+      
+    } catch (error) {
+      console.error('Error loading posts:', error);
+      postsList.innerHTML = `
+        <div class="error-message">
+          <p>Failed to load posts. Please try again later.</p>
+        </div>
+      `;
+    }
+  }
+
+  // Function to handle post creation
+  async function createPost(event) {
+    event.preventDefault();
+    
+    const token = localStorage.getItem('adminToken');
+    const formData = new FormData(form);
+    
+    const postData = {
+      title: formData.get('title'),
+      tags: formData.get('tags') || '',  // Send as a string, not an array
+      excerpt: formData.get('excerpt') || '',
+      content: formData.get('content'),
+      status: formData.get('status') || 'draft'
+    };
+    
+    try {
+      const response = await fetch('http://localhost:3000/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(postData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create post');
+      }
+      
+      const result = await response.json();
+      
+      // Reset form
+      form.reset();
+      
+      // Set default to private
+      document.getElementById('status-private').checked = true;
+      
+      // Reset form mode
+      form.dataset.mode = 'create';
+      form.dataset.postId = '';
+      
+      // Reset submit button text
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton.textContent = 'Save Post';
+      
+      // Refresh posts list
+      loadPosts();
+      
+      // Show success message
+      const successMessage = document.createElement('div');
+      successMessage.className = 'success-message';
+      successMessage.textContent = 'Post created successfully';
+      document.querySelector('.create-post-section').prepend(successMessage);
+      
+      // Remove success message after 3 seconds
+      setTimeout(() => {
+        successMessage.remove();
+      }, 3000);
+    } catch (error) {
+      console.error('Error creating post:', error);
+      
+      // Show error message
+      const errorMessage = document.createElement('div');
+      errorMessage.className = 'error-message';
+      errorMessage.textContent = 'Failed to create post. Please try again.';
+      document.querySelector('.create-post-section').prepend(errorMessage);
+      
+      // Remove error message after 3 seconds
+      setTimeout(() => {
+        errorMessage.remove();
+      }, 3000);
+    }
+  }
+
+  // Event listeners
+  form.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    
+    if (form.dataset.mode === 'edit') {
+      const postId = form.dataset.postId;
+      const token = localStorage.getItem('adminToken');
+      const formData = new FormData(form);
+      const postData = {
+        title: formData.get('title'),
+        tags: formData.get('tags') || '',  // Send as a string, not an array
+        excerpt: formData.get('excerpt') || '',
+        content: formData.get('content'),
+        status: formData.get('status') || 'draft'
+      };
+
+      try {
+        const response = await fetch(`http://localhost:3000/posts/${postId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(postData)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update post');
+        }
+        
+        const result = await response.json();
+
+        // Reset form
+        form.reset();
+        
+        // Set default to private
+        document.getElementById('status-private').checked = true;
+        
+        // Reset form mode
+        form.dataset.mode = 'create';
+        form.dataset.postId = '';
+        
+        // Reset submit button text
+        const submitButton = form.querySelector('button[type="submit"]');
+        submitButton.textContent = 'Save Post';
+        
+        // Refresh posts list
+        loadPosts();
+        
+        // Show success message
+        const successMessage = document.createElement('div');
+        successMessage.className = 'success-message';
+        successMessage.textContent = 'Post updated successfully';
+        document.querySelector('.create-post-section').prepend(successMessage);
+        
+        // Remove success message after 3 seconds
+        setTimeout(() => {
+          successMessage.remove();
+        }, 3000);
+      } catch (error) {
+        console.error('Error updating post:', error);
+        
+        // Show error message
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'error-message';
+        errorMessage.textContent = 'Failed to update post. Please try again.';
+        document.querySelector('.create-post-section').prepend(errorMessage);
+        
+        // Remove error message after 3 seconds
+        setTimeout(() => {
+          errorMessage.remove();
+        }, 3000);
+      }
+    } else {
+      await createPost(event);
+    }
+  });
+
+  // Add filter event listeners
+  filterButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      filterPosts(this.dataset.filter);
+    });
+  });
+
+  // Initial authentication check
+  const token = localStorage.getItem('adminToken');
+  if (token) {
+    // Verify token and load content
+    fetch('http://localhost:3000/auth', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(response => {
+      if (response.ok) {
+        showAdminContent();
+        loadPosts();
+      } else {
+        showLoginSection();
+      }
+    })
+    .catch(() => {
+      showLoginSection();
+    });
+  } else {
+    showLoginSection();
+  }
+});
+</script>
+
+<style>
+:root {
+  --dark-background: #0a0a1a;
+  --dark-secondary-background: #121229;
+  --accent-color: #6a11cb;
+  --text-color: #e0e0e0;
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
+.admin-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: var(--dark-background);
+  color: var(--text-color);
+}
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 30px;
+  position: relative;
+}
+
+.dashboard-header h1 {
+  color: var(--accent-color);
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+
+.create-post-section, .existing-posts {
+  background-color: var(--dark-secondary-background);
+  border-radius: 10px;
+  padding: 30px;
+  margin-bottom: 30px;
+  border: 1px solid var(--border-color);
+}
+
+.post-form .form-group {
+  margin-bottom: 20px;
+}
+
+.post-form label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text-color);
+}
+
+.post-form input, 
+.post-form textarea,
+.post-form select {
+  width: 100%;
+  padding: 10px;
+  background-color: var(--dark-background);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.radio-option input[type="radio"] {
+  width: auto;
+  margin: 0;
+}
+
+.radio-option label {
+  margin: 0;
+  display: inline;
+}
+
+.form-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.btn-secondary {
+  background-color: rgba(106, 17, 203, 0.2);
+  color: var(--accent-color);
+}
+
+.btn:hover {
+  opacity: 0.8;
+  transform: translateY(-2px);
+}
+
+.post-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.btn-filter {
+  background-color: var(--dark-background);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  padding: 8px 15px;
+  border-radius: 5px;
+  font-size: 0.9rem;
+}
+
+.btn-filter.active {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.post-card {
+  background-color: var(--dark-background);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.post-draft {
+  border-left: 5px solid #e67e22;
+}
+
+.post-public {
+  border-left: 5px solid #27ae60;
+}
+
+.post-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.post-title {
+  margin-top: 0;
+  margin-bottom: 15px;
+  padding-right: 70px; /* Make room for status badge */
+}
+
+.post-excerpt {
+  margin-bottom: 20px;
+  flex-grow: 1;
+}
+
+.post-meta {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  border-top: 1px solid var(--border-color);
+  padding-top: 15px;
+}
+
+.post-date {
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.post-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-publish, .btn-unpublish, .btn-edit, .btn-delete {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+}
+
+.btn-publish {
+  background-color: rgba(39, 174, 96, 0.2);
+  color: #27ae60;
+}
+
+.btn-unpublish {
+  background-color: rgba(230, 126, 34, 0.2);
+  color: #e67e22;
+}
+
+.btn-edit {
+  background-color: rgba(41, 128, 185, 0.2);
+  color: #2980b9;
+}
+
+.btn-delete {
+  background-color: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+}
+
+.post-status-badge {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.post-draft .post-status-badge {
+  background-color: #e67e22;
+  color: white;
+}
+
+.post-public .post-status-badge {
+  background-color: #27ae60;
+  color: white;
+}
+
+.error-message {
+  background-color: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+  padding: 15px;
+  border-radius: 5px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.success-message {
+  background-color: rgba(39, 174, 96, 0.1);
+  color: #27ae60;
+  padding: 15px;
+  border-radius: 5px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.no-posts {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 30px;
+  background-color: var(--dark-background);
+  border-radius: 10px;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.login-section {
+  max-width: 400px;
+  margin: 50px auto;
+  background-color: var(--dark-secondary-background);
+  padding: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.login-section h2 {
+  color: var(--accent-color);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.login-form .form-group {
+  margin-bottom: 20px;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text-color);
+}
+
+.login-form input {
+  width: 100%;
+  padding: 10px;
+  background-color: var(--dark-background);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+}
+
+#login-error {
+  color: #e74c3c;
+  background-color: rgba(231, 76, 60, 0.1);
+  padding: 10px;
+  border-radius: 5px;
+  margin-top: 15px;
+  text-align: center;
+}
+
+#logout-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+}
+
+@media (max-width: 768px) {
+  .posts-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .post-actions {
+    justify-content: center;
+  }
+  
+  .post-filters {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+</style>
