@@ -153,21 +153,16 @@ sudo cp -r _site/* /var/www/tech-blog/_site/
 
 2. **Import the database schema**
    ```bash
+   # This single command will create the database, tables, users and sample content
    mysql -u root -p < database/setup.sql
    ```
 
-3. **Create a database user**
-   ```bash
-   mysql -u root -p
-   ```
-
-   Then in the MySQL prompt:
-   ```sql
-   CREATE USER 'blog_user'@'localhost' IDENTIFIED BY 'choose_strong_password';
-   GRANT ALL PRIVILEGES ON blog_database.* TO 'blog_user'@'localhost';
-   FLUSH PRIVILEGES;
-   EXIT;
-   ```
+   This sets up:
+   - The blog_database
+   - All required tables
+   - Default admin user
+   - Sample blog posts
+   - Proper permissions
 
 ### Step 5: Create Simple Backend API (PHP)
 
@@ -196,8 +191,8 @@ sudo cp -r _site/* /var/www/tech-blog/_site/
    ```php
    <?php
    $db_host = 'localhost';
-   $db_user = 'blog_user';
-   $db_pass = 'choose_strong_password'; // Use the password you set earlier
+   $db_user = 'admin';  // Default user from setup.sql
+   $db_pass = 'blog2025!';  // Default password from setup.sql
    $db_name = 'blog_database';
    
    $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
